@@ -54,8 +54,8 @@ ldr x1, [sp, #(2 * 8 + 2 * 8 + 30 * 8 + 8 * 16)]
 adrp TMP_REG_0, cdecl(common_closure_bridge_handler)@PAGE
 add TMP_REG_0, TMP_REG_0, cdecl(common_closure_bridge_handler)@PAGEOFF
 #else
-adrp TMP_REG_0, cdecl(common_closure_bridge_handler)
-add TMP_REG_0, TMP_REG_0, :lo12:cdecl(common_closure_bridge_handler)
+adrp TMP_REG_0, :got:cdecl(common_closure_bridge_handler)
+ldr TMP_REG_0, [TMP_REG_0, :got_lo12:cdecl(common_closure_bridge_handler)]
 #endif
 blr TMP_REG_0
 
