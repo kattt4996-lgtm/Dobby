@@ -1,114 +1,72 @@
-name: Builder
+name: Build Dobby Android ARM64
 
 on:
   push:
-    branches:
-      - master
-
-env:
-  CMAKE_VERSION: 3.25.2
-  LLVM_VERSION: 15.0.6
-  NDK_VERSION: r25b
+    branches: [ master, main ]
+  workflow_dispatch:
 
 jobs:
-  delete_latest_release:
+  build-android-arm64:
     runs-on: ubuntu-latest
-    steps:
-    - name: checkout master
-      uses: actions/checkout@master
-
-    - name: delete latest release
-      uses: dev-drprasad/delete-tag-and-release@v0.2.1
-      with:
-        delete_release: true
-        tag_name: latest
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  linux_and_android:
-    runs-on: ubuntu-latest
-    needs: delete_latest_release
-    steps:
-    - name: checkout master
-      uses: actions/checkout@master
-
-    - name: init linux cross compile env
-      run: |
-        sh scripts/setup_linux_cross_compile.sh
-        mkdir -p artifact
-      shell: bash
-
-    - name: compile linux
-      run: |
-        python3 scripts/platform_builder.py --platform=linux --arch=all --cmake_dir=$HOME/opt/cmake-$CMAKE_VERSION --llvm_dir=$HOME/opt/llvm-$LLVM_VERSION
-        cp include/dobby.h build/linux
-        tar -zcvf build/dobby-linux-all.tar.gz build/linux
-        cp build/dobby-linux-all.tar.gz artifact/
-        
-      shell: bash
     
-    - name: compile android
-      run: |
-        python3 scripts/platform_builder.py --platform=android --arch=all --cmake_dir=$HOME/opt/cmake-$CMAKE_VERSION --llvm_dir=$HOME/opt/llvm-$LLVM_VERSION --android_ndk_dir=$HOME/opt/ndk-$NDK_VERSION
-        cp include/dobby.h build/android
-        tar -zcvf build/dobby-android-all.tar.gz build/android
-        cp build/dobby-android-all.tar.gz artifact/
-      shell: bash
-
-    - name: print output
-      run: |
-        ls -lha .
-
-    - name: update release
-      uses: ncipollo/release-action@v1
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        tag: latest
-        body: "a lightweight, multi-platform, multi-architecture exploit hook framework"
-        artifacts: "build/dobby-linux-all.tar.gz,build/dobby-android-all.tar.gz"
-        allowUpdates: true
-        replacesArtifacts: true
-
-  macos_and_iphoneos:
-    runs-on: macos-latest
-    needs: delete_latest_release
     steps:
-    - name: checkout dev
-      uses: actions/checkout@master
-
-    - name: init macos compile env
-      run: |
-        sh scripts/setup_macos_cross_compile.sh
-        mkdir -p artifact
-      shell: bash
-
-    - name: compile macos
-      run: |
-        python3 scripts/platform_builder.py --platform=macos --arch=all --cmake_dir=$HOME/opt/cmake-$CMAKE_VERSION/CMake.app/Contents
-        cp include/dobby.h build/macos
-        tar -zcvf build/dobby-macos-all.tar.gz build/macos
-        cp build/dobby-macos-all.tar.gz artifact/
-        
-      shell: bash
-    
-    - name: compile iphoneos
-      run: |
-        python3 scripts/platform_builder.py --platform=iphoneos --arch=all --cmake_dir=$HOME/opt/cmake-$CMAKE_VERSION/CMake.app/Contents
-        cp include/dobby.h build/iphoneos
-        tar -zcvf build/dobby-iphoneos-all.tar.gz build/iphoneos
-        cp build/dobby-iphoneos-all.tar.gz artifact/
-      shell: bash
-
-    - name: print output
-      run: |
-        ls -lha .
-
-    - name: update release
-      uses: ncipollo/release-action@v1
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        tag: latest
-        body: "a lightweight, multi-platform, multi-architecture exploit hook framework"
-        artifacts: "build/dobby-macos-all.tar.gz,build/dobby-iphoneos-all.tar.gz"
-        allowUpdates: true
-        replacesArtifacts: true
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Setup NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r26b
+          add-to-path: true
+      
+      - name: Verify NDK
+        run: |
+          echo "NDK path: $ANDROID_NDK_HOME"
+          ls $ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake
+      
+      - name: Build Dobby ARM64
+        run: |
+          mkdir -p build-android-arm64
+          cd build-android-arm64
+          
+          cmake .. \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-24 \
+            -DCMAKE_BUILD_TYPE=Release
+          
+          make -j$(nproc)
+      
+      - name: Find artifacts
+        run: |
+          echo "=== Cari libdobby ==="
+          find . -name "libdobby*.a" -o -name "libdobby*.so"
+          echo ""
+          echo "=== Isi build folder ==="
+          ls -la build-android-arm64/
+      
+      - name: Package artifacts
+        run: |
+          mkdir -p output/lib/arm64-v8a
+          mkdir -p output/include
+          
+          # Copy library
+          find build-android-arm64 -name "libdobby*.a" -exec cp {} output/lib/arm64-v8a/ \;
+          find build-android-arm64 -name "libdobby*.so" -exec cp {} output/lib/arm64-v8a/ \;
+          
+          # Copy header
+          cp include/dobby.h output/include/
+          
+          # Tampilkan hasil
+          echo "=== Hasil packaging ==="
+          find output -type f
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dobby-android-arm64
+          path: output/
+          retention-days: 30
