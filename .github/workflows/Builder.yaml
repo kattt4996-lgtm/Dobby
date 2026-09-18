@@ -19,13 +19,8 @@ jobs:
         uses: nttld/setup-ndk@v1
         id: setup-ndk
         with:
-          ndk-version: r26b
+          ndk-version: r25c          # ← GANTI KE r25c
           add-to-path: true
-      
-      - name: Verify NDK
-        run: |
-          echo "NDK path: $ANDROID_NDK_HOME"
-          ls $ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake
       
       - name: Build Dobby ARM64
         run: |
@@ -40,33 +35,16 @@ jobs:
           
           make -j$(nproc)
       
-      - name: Find artifacts
+      - name: Package
         run: |
-          echo "=== Cari libdobby ==="
-          find . -name "libdobby*.a" -o -name "libdobby*.so"
-          echo ""
-          echo "=== Isi build folder ==="
-          ls -la build-android-arm64/
-      
-      - name: Package artifacts
-        run: |
-          mkdir -p output/lib/arm64-v8a
-          mkdir -p output/include
-          
-          # Copy library
+          mkdir -p output/lib/arm64-v8a output/include
           find build-android-arm64 -name "libdobby*.a" -exec cp {} output/lib/arm64-v8a/ \;
           find build-android-arm64 -name "libdobby*.so" -exec cp {} output/lib/arm64-v8a/ \;
-          
-          # Copy header
           cp include/dobby.h output/include/
-          
-          # Tampilkan hasil
-          echo "=== Hasil packaging ==="
           find output -type f
       
-      - name: Upload artifacts
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: dobby-android-arm64
           path: output/
-          retention-days: 30
