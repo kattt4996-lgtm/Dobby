@@ -1,6 +1,8 @@
 #pragma once
 
-#include "dobby/common.h"
+#include <cstdint>
+#include <cstddef>
+#include <cstdarg>
 
 namespace base {
 
